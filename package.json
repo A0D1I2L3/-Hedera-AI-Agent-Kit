@@ -1,0 +1,24 @@
+{
+  "dependencies": {
+    "@hashgraph/sdk": "^2.75.0",
+    "@langchain/core": "^1.0.1",
+    "@langchain/groq": "^0.0.16",
+    "@langchain/langgraph": "^1.0.1",
+    "@langchain/ollama": "^1.0.0",
+    "@langchain/openai": "^1.0.0",
+    "dotenv": "^17.2.3",
+    "hedera-agent-kit": "^3.4.0",
+    "langchain": "^0.1.37"
+  },
+  "name": "hello-hedera-agent-kit",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs"
+}
