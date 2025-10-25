@@ -19,20 +19,6 @@ const { HumanMessage, AIMessage } = require("@langchain/core/messages");
 
 // Choose your AI provider
 function createLLM() {
-  // Option 1: OpenAI (requires OPENAI_API_KEY in .env)
-  if (process.env.OPENAI_API_KEY) {
-    const { ChatOpenAI } = require("@langchain/openai");
-    console.log("🔑 Using OpenAI");
-    return new ChatOpenAI({ model: "gpt-4o-mini" });
-  }
-
-  // Option 2: Anthropic Claude (requires ANTHROPIC_API_KEY in .env)
-  if (process.env.ANTHROPIC_API_KEY) {
-    const { ChatAnthropic } = require("@langchain/anthropic");
-    console.log("🔑 Using Anthropic Claude");
-    return new ChatAnthropic({ model: "claude-3-haiku-20240307" });
-  }
-
   // Option 3: Groq (requires GROQ_API_KEY in .env)
   if (process.env.GROQ_API_KEY) {
     const { ChatGroq } = require("@langchain/groq");
@@ -54,7 +40,7 @@ function createLLM() {
   } catch (e) {
     console.error("No AI provider configured. Please either:");
     console.error(
-      "1. Set OPENAI_API_KEY, ANTHROPIC_API_KEY, or GROQ_API_KEY in .env",
+      "1. Set OPENAI_API_KEY, ANTHROPIC_API_KEY, or GROQ_API_KEY in .env"
     );
     console.error("2. Install and run Ollama locally (https://ollama.com)");
     process.exit(1);
@@ -84,7 +70,7 @@ async function main() {
     // Hedera client setup (Testnet by default)
     const client = Client.forTestnet().setOperator(
       process.env.HEDERA_ACCOUNT_ID,
-      privateKey,
+      privateKey
     );
 
     // Filter out undefined plugins
@@ -96,11 +82,6 @@ async function main() {
       coreTokenPlugin,
       coreTokenQueryPlugin,
     ].filter((plugin) => plugin !== undefined && plugin !== null);
-
-    console.log(`\n📦 Loading ${allPlugins.length} plugins...`);
-    allPlugins.forEach((plugin) => {
-      console.log(`   ✓ ${plugin.name}`);
-    });
 
     const hederaAgentToolkit = new HederaLangchainToolkit({
       client,
@@ -141,11 +122,6 @@ Be helpful but cautious with high-value transactions.`,
     // Fetch tools from toolkit
     const tools = hederaAgentToolkit.getTools();
 
-    console.log(`\n🤖 Autonomous Hedera Agent Ready!`);
-    console.log(`📋 Available tools: ${tools.length}`);
-    console.log(`🔑 Operator Account: ${process.env.HEDERA_ACCOUNT_ID}`);
-    console.log(`⚡ Mode: AUTONOMOUS (full transaction control)\n`);
-
     // Create the underlying agent
     const agent = await createToolCallingAgent({
       llm,
@@ -157,9 +133,14 @@ Be helpful but cautious with high-value transactions.`,
     const agentExecutor = new AgentExecutor({
       agent,
       tools,
-      verbose: true,
+      verbose: false, // CRITICAL: Must be false for clean output
       maxIterations: 15,
     });
+
+    console.log(`\n✅ Agent initialized successfully!`);
+    console.log(`🔑 Account: ${process.env.HEDERA_ACCOUNT_ID}`);
+    console.log(`📦 Loaded ${allPlugins.length} plugins`);
+    console.log(`⚡ Mode: AUTONOMOUS\n`);
 
     // Chat history to maintain context
     const chatHistory = [];
@@ -197,12 +178,13 @@ Be helpful but cautious with high-value transactions.`,
           continue; // Skip empty inputs
         }
 
-        console.log("\n🤖 Processing...\n");
-
         const response = await agentExecutor.invoke({
           input: userInput,
           chat_history: chatHistory,
         });
+
+        // Display clean output
+        console.log(`Agent: ${response.output}\n`);
 
         // Add to chat history for context
         chatHistory.push(new HumanMessage(userInput));
@@ -212,11 +194,8 @@ Be helpful but cautious with high-value transactions.`,
         if (chatHistory.length > 10) {
           chatHistory.splice(0, 2);
         }
-
-        console.log("\nAgent:", response.output, "\n");
       } catch (error) {
-        console.error("❌ Error:", error.message);
-        console.log(); // Empty line for spacing
+        console.error(`Agent: ❌ Error - ${error.message}\n`);
       }
     }
   } catch (error) {
