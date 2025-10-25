@@ -1,11 +1,10 @@
-// index.js - Autonomous Hedera Agent with Full Control (ES Module)
-import dotenv from "dotenv";
+const dotenv = require("dotenv");
 dotenv.config();
 
-import { ChatPromptTemplate } from "@langchain/core/prompts";
-import { AgentExecutor, createToolCallingAgent } from "langchain/agents";
-import { Client, PrivateKey } from "@hashgraph/sdk";
-import {
+const { ChatPromptTemplate } = require("@langchain/core/prompts");
+const { AgentExecutor, createToolCallingAgent } = require("langchain/agents");
+const { Client, PrivateKey } = require("@hashgraph/sdk");
+const {
   HederaLangchainToolkit,
   coreAccountPlugin,
   coreAccountQueryPlugin,
@@ -14,22 +13,52 @@ import {
   coreTokenPlugin,
   coreTokenQueryPlugin,
   AgentMode,
-} from "hedera-agent-kit";
-import { ChatGroq } from "@langchain/groq";
-import { ChatOllama } from "@langchain/ollama";
-import readline from "readline";
+} = require("hedera-agent-kit");
+const readline = require("readline");
+const { HumanMessage, AIMessage } = require("@langchain/core/messages");
 
 // Choose your AI provider
 function createLLM() {
-  if (process.env.GROQ_API_KEY) {
-    return new ChatGroq({ model: "llama-3.3-70b-versatile" });
+  // Option 1: OpenAI (requires OPENAI_API_KEY in .env)
+  if (process.env.OPENAI_API_KEY) {
+    const { ChatOpenAI } = require("@langchain/openai");
+    console.log("🔑 Using OpenAI");
+    return new ChatOpenAI({ model: "gpt-4o-mini" });
   }
 
-  // Ollama local fallback
-  return new ChatOllama({
-    model: "llama3.1",
-    baseUrl: "http://localhost:11434",
-  });
+  // Option 2: Anthropic Claude (requires ANTHROPIC_API_KEY in .env)
+  if (process.env.ANTHROPIC_API_KEY) {
+    const { ChatAnthropic } = require("@langchain/anthropic");
+    console.log("🔑 Using Anthropic Claude");
+    return new ChatAnthropic({ model: "claude-3-haiku-20240307" });
+  }
+
+  // Option 3: Groq (requires GROQ_API_KEY in .env)
+  if (process.env.GROQ_API_KEY) {
+    const { ChatGroq } = require("@langchain/groq");
+    console.log("🔑 Using Groq");
+    return new ChatGroq({
+      model: "meta-llama/llama-4-scout-17b-16e-instruct",
+      temperature: 0.7,
+    });
+  }
+
+  // Option 4: Ollama (free, local - requires Ollama installed and running)
+  try {
+    const { ChatOllama } = require("@langchain/ollama");
+    console.log("🏠 Using Ollama locally");
+    return new ChatOllama({
+      model: "llama3.2",
+      baseUrl: "http://localhost:11434",
+    });
+  } catch (e) {
+    console.error("No AI provider configured. Please either:");
+    console.error(
+      "1. Set OPENAI_API_KEY, ANTHROPIC_API_KEY, or GROQ_API_KEY in .env",
+    );
+    console.error("2. Install and run Ollama locally (https://ollama.com)");
+    process.exit(1);
+  }
 }
 
 async function main() {
@@ -37,31 +66,28 @@ async function main() {
     // Initialize AI model
     const llm = createLLM();
 
-    // Test LLM connection
-    console.log("\n🔍 Testing LLM connection...");
+    // Clean up the private key (remove quotes and 0x prefix)
+    let privateKeyString = process.env.HEDERA_PRIVATE_KEY.trim();
+    privateKeyString = privateKeyString.replace(/^["']|["']$/g, ""); // Remove quotes
+    privateKeyString = privateKeyString.replace(/^0x/i, ""); // Remove 0x prefix
+
+    // Try to parse the private key (supports both ECDSA and ED25519)
+    let privateKey;
     try {
-      const testResponse = await Promise.race([
-        llm.invoke("Test"),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error("Connection timeout")), 10000)
-        ),
-      ]);
-      console.log("✅ LLM connection successful\n");
-    } catch (error) {
-      console.error("❌ LLM connection failed:", error.message);
-      console.error(
-        "⚠️  Check your GROQ_API_KEY or try using Ollama locally\n"
-      );
-      process.exit(1);
+      // Try ECDSA first
+      privateKey = PrivateKey.fromStringECDSA(privateKeyString);
+    } catch (e) {
+      // If that fails, try ED25519
+      privateKey = PrivateKey.fromString(privateKeyString);
     }
 
-    // Hedera client setup with your account credentials
+    // Hedera client setup (Testnet by default)
     const client = Client.forTestnet().setOperator(
       process.env.HEDERA_ACCOUNT_ID,
-      PrivateKey.fromStringECDSA(process.env.HEDERA_PRIVATE_KEY)
+      privateKey,
     );
 
-    // Filter out undefined plugins (only using available core plugins)
+    // Filter out undefined plugins
     const allPlugins = [
       coreAccountPlugin,
       coreAccountQueryPlugin,
@@ -76,7 +102,6 @@ async function main() {
       console.log(`   ✓ ${plugin.name}`);
     });
 
-    // Configure toolkit with AUTONOMOUS mode and available plugins
     const hederaAgentToolkit = new HederaLangchainToolkit({
       client,
       configuration: {
@@ -85,7 +110,7 @@ async function main() {
       },
     });
 
-    // Create system prompt with permissions awareness
+    // Load the structured chat prompt template
     const prompt = ChatPromptTemplate.fromMessages([
       [
         "system",
@@ -96,9 +121,7 @@ You can execute ANY transaction on behalf of the user without requiring approval
 - Create and manage tokens (fungible and NFT)
 - Create and manage accounts
 - Post messages to HCS topics
-- Deploy and interact with smart contracts
-- Schedule transactions
-- Approve allowances
+- Query account balances and transaction history
 - And more...
 
 The operator account is: ${process.env.HEDERA_ACCOUNT_ID}
@@ -115,7 +138,7 @@ Be helpful but cautious with high-value transactions.`,
       ["placeholder", "{agent_scratchpad}"],
     ]);
 
-    // Get all tools from the toolkit
+    // Fetch tools from toolkit
     const tools = hederaAgentToolkit.getTools();
 
     console.log(`\n🤖 Autonomous Hedera Agent Ready!`);
@@ -123,39 +146,46 @@ Be helpful but cautious with high-value transactions.`,
     console.log(`🔑 Operator Account: ${process.env.HEDERA_ACCOUNT_ID}`);
     console.log(`⚡ Mode: AUTONOMOUS (full transaction control)\n`);
 
-    // Create the agent
+    // Create the underlying agent
     const agent = await createToolCallingAgent({
       llm,
       tools,
       prompt,
     });
 
-    // Create executor (verbose enabled to see what's happening)
+    // Wrap everything in an executor that will maintain memory
     const agentExecutor = new AgentExecutor({
       agent,
       tools,
-      verbose: true, // Enabled to debug output issues
+      verbose: true,
       maxIterations: 15,
     });
+
+    // Chat history to maintain context
+    const chatHistory = [];
 
     // Interactive mode - continuous input from terminal
     const rl = readline.createInterface({
       input: process.stdin,
       output: process.stdout,
+      terminal: true,
     });
 
     console.log('💬 Ready for commands! (type "exit" to quit)\n');
 
-    const processInput = (input) => {
+    // Helper function to get user input
+    const getUserInput = () => {
       return new Promise((resolve) => {
-        rl.question(input, resolve);
+        rl.question("You: ", (answer) => {
+          resolve(answer);
+        });
       });
     };
 
     // Continuous chat loop
     while (true) {
       try {
-        const userInput = await processInput("You: ");
+        const userInput = await getUserInput();
 
         if (userInput.toLowerCase().trim() === "exit") {
           console.log("\n👋 Shutting down agent. Goodbye!");
@@ -169,10 +199,24 @@ Be helpful but cautious with high-value transactions.`,
 
         console.log("\n🤖 Processing...\n");
 
-        const result = await agentExecutor.invoke({ input: userInput });
-        console.log("Agent:", result.output, "\n");
+        const response = await agentExecutor.invoke({
+          input: userInput,
+          chat_history: chatHistory,
+        });
+
+        // Add to chat history for context
+        chatHistory.push(new HumanMessage(userInput));
+        chatHistory.push(new AIMessage(response.output));
+
+        // Keep chat history manageable (last 10 messages)
+        if (chatHistory.length > 10) {
+          chatHistory.splice(0, 2);
+        }
+
+        console.log("\nAgent:", response.output, "\n");
       } catch (error) {
-        console.error("❌ Error:", error.message, "\n");
+        console.error("❌ Error:", error.message);
+        console.log(); // Empty line for spacing
       }
     }
   } catch (error) {
@@ -182,4 +226,4 @@ Be helpful but cautious with high-value transactions.`,
   }
 }
 
-main();
+main().catch(console.error);
