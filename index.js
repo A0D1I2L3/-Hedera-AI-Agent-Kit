@@ -107,10 +107,16 @@ You can execute ANY transaction on behalf of the user without requiring approval
 
 The operator account is: ${process.env.HEDERA_ACCOUNT_ID}
 
-IMPORTANT: You will automatically execute transactions. Always:
+IMPORTANT TOKEN CREATION RULES:
+- When creating fungible tokens, ALWAYS ask for initial supply if not provided
+- If user wants to mint tokens later, include supplyKey in token creation
+- For viewing token balances, check on HashScan: https://hashscan.io/testnet/account/${process.env.HEDERA_ACCOUNT_ID}
+
+TRANSACTION GUIDELINES:
 1. Confirm the action before executing
 2. Provide clear transaction IDs after execution
-3. Handle errors gracefully and explain what went wrong
+3. For token operations, always include the HashScan link
+4. Handle errors gracefully and explain what went wrong
 
 Be helpful but cautious with high-value transactions.`,
       ],
@@ -178,24 +184,37 @@ Be helpful but cautious with high-value transactions.`,
           continue; // Skip empty inputs
         }
 
-        const response = await agentExecutor.invoke({
-          input: userInput,
-          chat_history: chatHistory,
-        });
+        try {
+          const response = await agentExecutor.invoke({
+            input: userInput,
+            chat_history: chatHistory,
+          });
 
-        // Display clean output
-        console.log(`Agent: ${response.output}\n`);
+          // Display clean output
+          console.log(`Agent: ${response.output}\n`);
 
-        // Add to chat history for context
-        chatHistory.push(new HumanMessage(userInput));
-        chatHistory.push(new AIMessage(response.output));
+          // Add to chat history for context
+          chatHistory.push(new HumanMessage(userInput));
+          chatHistory.push(new AIMessage(response.output));
 
-        // Keep chat history manageable (last 10 messages)
-        if (chatHistory.length > 10) {
-          chatHistory.splice(0, 2);
+          // Keep chat history manageable (last 10 messages)
+          if (chatHistory.length > 10) {
+            chatHistory.splice(0, 2);
+          }
+        } catch (invokeError) {
+          // Detailed error logging for debugging
+          console.error(`Agent: ❌ Error occurred during execution\n`);
+          console.error(`Error details: ${invokeError.message}\n`);
+
+          // Check if it's a tool execution error
+          if (invokeError.message.includes("content")) {
+            console.log(
+              `💡 Tip: Try rephrasing your request or provide the token ID explicitly.\n`
+            );
+          }
         }
       } catch (error) {
-        console.error(`Agent: ❌ Error - ${error.message}\n`);
+        console.error(`Agent: ❌ Fatal error - ${error.message}\n`);
       }
     }
   } catch (error) {
