@@ -1,4 +1,4 @@
-# Hedera AI Agent Kit
+# AgentH - Hedera AI Agent Kit
 
 ![Banner](banner.jpg)
 
@@ -62,10 +62,77 @@ Ask your agent in plain English:
 
 ---
 
-## Resources
+## Get Started
 
-- **Documentation**: [docs.hedera.com/agent-kit](https://docs.hedera.com/agent-kit)
-- **GitHub**: [github.com/hashgraph/hedera-agent-kit](https://github.com/hashgraph/hedera-agent-kit)
-- **Discord**: [hedera.com/discord](https://hedera.com/discord)
-- **Portal**: [portal.hedera.com](https://portal.hedera.com)
-- **Examples**: [github.com/hashgraph/hedera-agent-kit/examples](https://github.com/hashgraph/hedera-agent-kit/tree/main/examples)
+Follow these steps to set up your environment and run the agents.
+
+### Setting Up Environment Variables (.env)
+
+This project uses environment variables to securely manage your Hedera account credentials and agent configurations.
+
+1.  **Create the .env file:**
+    In the root directory of the project, create a new file named `.env`.
+
+2.  **Add Your Main Hedera Credentials:**
+    You need a Hedera testnet account. Get your Account ID and Private Key from the [Hedera Portal](https://portal.hedera.com/). Add them to your `.env` file.
+
+    ```bash
+    # Add your personal Hedera Account ID and Private Key
+    HEDERA_ACCOUNT_ID="YOUR_ACCOUNT_ID"
+    HEDERA_PRIVATE_KEY="YOUR_PRIVATE_KEY"
+    ```
+    *Example format:*
+    ```bash
+    # HEDERA_ACCOUNT_ID="0.0.7129064"
+    # HEDERA_PRIVATE_KEY="0x9f99d98c130eafcc70dc768c542f25a44350dd986b101dd6131c322a627bc5f6"
+    ```
+
+3.  **Create the Main Agent Topic:**
+    Run the `createTopic.js` script to create the main topic for agent-to-agent (A2A) communication.
+
+    ```bash
+    node createTopic.js
+    ```
+
+4.  **Add Agent and Topic IDs:**
+    After running the script, add the following lines to your `.env` file. These are used to identify the main travel agent and its communication topic.
+
+    ```bash
+    AGENT_ID=hedera-travel-agent
+    A2A_TOPIC_ID=0.0.7131990
+    ```
+
+5.  **Create Sub-Agents (Hotel & Insurance):**
+    Run the scripts to create the dedicated hotel and insurance agents.
+
+    ```bash
+    node createHotelAgent.js
+    node createInsuranceAgent.js
+    ```
+
+6.  **Add Sub-Agent Credentials:**
+    Finally, add the credentials for the newly created agents to your `.env` file. These are pre-defined for this example.
+
+    ```bash
+    HOTEL_ACCOUNT_ID="0.0.7133955"
+    HOTEL_PRIVATE_KEY="3030020100300706052b8104000a0422042069a2454ebae883eb577bcf99bd47688e0ff8365c7991cb204885282fb31ea99e"
+    INSURANCE_ACCOUNT_ID="0.0.7134185"
+    INSURANCE_PRIVATE_KEY="3030020100300706052b8104000a04220420c594406ce5b820f62b89ae7046630509620e6ddf4b2a024644252432e0e048af"
+    ```
+
+Your final `.env` file should look similar to this (with your own credentials at the top):
+
+```bash
+# Your personal account from Hedera Portal
+HEDERA_ACCOUNT_ID="0.0.xxxxxxx"
+HEDERA_PRIVATE_KEY="0x................"
+
+# Main agent identifiers
+AGENT_ID=hedera-travel-agent
+A2A_TOPIC_ID=0.0.7131990
+
+# Sub-agent credentials
+HOTEL_ACCOUNT_ID="0.0.7133955"
+HOTEL_PRIVATE_KEY="XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+INSURANCE_ACCOUNT_ID="0.0.7134185"
+INSURANCE_PRIVATE_KEY="XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
