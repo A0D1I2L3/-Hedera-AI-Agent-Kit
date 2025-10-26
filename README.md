@@ -1,66 +1,120 @@
 # AgentH
-
 ![Banner](banner.jpg)
 
-Build LLM-powered applications that interact directly with the **Hedera Network**.
-Create conversational agents that understand natural language and execute Hedera transactions, or build backend systems that leverage AI for on-chain operations.
+**Autonomous AI agents on Hedera** enabling decentralized travel booking and insurance quotes through multi-agent coordination.
+
+Build AI-powered applications where independent agents communicate over Hedera's Consensus Service to perform tasks — entirely on-chain and without centralized servers.
 
 ---
 
 ## Overview
 
-The **Hedera Agent Kit** provides:
+**AgentH** demonstrates autonomous-to-autonomous (A2A) communication, where specialized AI agents act as independent economic participants:
 
-- **Conversational AI** — LangChain-based agents that understand natural language commands and execute Hedera operations.
-- **Adaptors for Framework Tools** — Pre-built tools covering Hedera services (and third-party plugins), automatically adapted into popular frameworks like **LangChain**, **Vercel AI SDK**, and **MCP**.
-- **Flexible Transaction Handling** — Execute directly or provide transaction bytes for user signing in wallets.
-- **Execution Modes** — Autonomous or Human-in-the-Loop transaction execution with approval workflows.
-- **Plugin Architecture** — Extend Hedera network capabilities with both native and third-party features.
-- **Multi-Agent Support** — Build systems where multiple AI agents communicate and transact with each other.
+- **Decentralized Travel Booking** — Hotel search and reservation through agent coordination
+- **On-Chain Insurance Quotes** — Travel insurance pricing via specialized agents
+- **Verifiable Agent Communication** — All inter-agent messages recorded immutably on HCS
+- **Real-Time Interaction** — WebSocket-based chat interface for natural language requests
+- **Multi-Agent Coordination** — Specialized sub-agents work together transparently
 
 ---
 
 ## Screenshots
 
-![Screenshot 1](ss1.jpg)
-![Screenshot 2](ss2.jpeg)
-![Screenshot 3](ss3.jpeg)
-![Screenshot 4](ss4.jpeg)
+![Insurance Booking Chat](ss1.jpg)
+*Natural language insurance quote request and AI agent response*
+
+![Hotel Booking - Search Results](ss2.jpeg)
+*Hotel agent presenting available options with pricing and details*
+
+![Hotel Booking - Selection](ss3.jpeg)
+*Continuing hotel booking flow with agent recommendations*
+
+![HashScan Transaction](ss4.jpeg)
+*Completed hotel booking verified on Hedera HashScan explorer*
 
 ---
 
 ## Key Features
 
-### Natural Language Interface
+### Multi-Agent Coordination
 Ask your agent in plain English:
+- "Find me a hotel in Paris for next weekend under $200/night"
+- "Get travel insurance quotes for my Tokyo trip"
+- "Compare hotel options and recommend the best value"
+- Agents coordinate over Hedera Topics, creating verifiable decision trails
 
-- "Transfer 10 HBAR to account 0.0.12345"
-- "Create a new topic for my blog posts"
-- "What's my account balance?"
-- "Deploy a smart contract to testnet"
+### On-Chain Service Execution
+- **Decentralized Booking** — No centralized server; agents coordinate directly
+- **Immutable Agreements** — All negotiations recorded on HCS
+- **Transparent Pricing** — Every quote visible on-chain
+- **HashScan Verification** — All transactions viewable on Hedera's explorer
 
-### Comprehensive Hedera Service Coverage
-
-- **HBAR Transfers** — Send and receive cryptocurrency
-- **Token Service** — Create, mint, burn, and transfer fungible/NFT tokens
-- **Consensus Service** — Submit and query topic messages
-- **Smart Contracts** — Deploy and interact with Solidity contracts
-- **File Service** — Store and retrieve files on-chain
-- **Account Management** — Create accounts, check balances, get info
+### Built on Hedera Agent Kit
+Powered by **Hedera AI Agent Kit** and **ElizaOS framework**:
+- **LangChain Integration** — Natural language understanding via Groq/Ollama LLMs
+- **Hedera JavaScript SDK** — Direct network interaction
+- **WebSocket API** — Real-time bidirectional communication
+- **Agent Runtime** — Autonomous decision-making and task delegation
 
 ### Framework Integrations
-
 - **LangChain** — Build conversational AI agents
+- **ElizaOS** — Agent orchestration framework
 - **Model Context Protocol (MCP)** — Connect AI models to Hedera services
 
-### Security & Control
+---
 
-- **Transaction Preview** — Review transactions before execution
-- **User Approval Workflows** — Human-in-the-loop for sensitive operations
-- **Private Key Management** — Secure credential handling
-- **Testnet/Mainnet Support** — Safe development and production deployment
+## Technical Stack
+
+**Backend:**
+- Node.js + Express
+- ElizaOS agent orchestration
+- Hedera AI Agent Kit
+- WebSocket server
+
+**Frontend:**
+- React + Tailwind CSS
+- WebSocket client
+- Transaction visualization
+
+**AI Layer:**
+- LangChain for reasoning
+- Groq/Ollama LLM
+- Intent recognition
+
+**Blockchain:**
+- Hedera Consensus Service (HCS)
+- Hedera JavaScript SDK
+- HashScan integration
 
 ---
+
+## Use Cases Beyond Travel
+
+The AgentH pattern enables decentralized coordination for:
+- **Supply Chain Management** — Autonomous logistics agents
+- **Insurance Claims** — Multi-party verification agents
+- **Marketplace Operations** — Buyer and seller agents negotiating
+- **Service Coordination** — Specialized agents on complex tasks
+
+---
+
+## Why It Matters
+
+AgentH proves autonomous agents can coordinate complex services entirely on-chain:
+
+✅ **No Centralized Server** — Agents are independent participants
+✅ **Verifiable Coordination** — Every message recorded immutably on Hedera
+✅ **Transparent Economics** — All pricing visible on HashScan
+✅ **Trustless Execution** — No single point of control
+
+This is a blueprint for **agent-to-agent economies** where AI participants transact as peers, with Hedera providing trustless infrastructure.
+
+---
+
+## Built At
+
+**ETHOnline 2025** — Exploring the future of autonomous agent economies on Hedera
 
 ## Get Started
 
