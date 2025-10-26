@@ -1,16 +1,19 @@
 const dotenv = require("dotenv");
 dotenv.config();
 
-const { ChatPromptTemplate } = require("@langchain/core/prompts");
-const { AgentExecutor, createToolCallingAgent } = require("langchain/agents");
+const http = require("http");
+const express = require("express");
+const { WebSocketServer, WebSocket } = require("ws");
+const path = require("path");
+
 const {
   Client,
   PrivateKey,
   TopicMessageSubmitTransaction,
   TopicMessageQuery,
-  TransferTransaction,
   Hbar,
 } = require("@hashgraph/sdk");
+
 const {
   HederaLangchainToolkit,
   coreAccountPlugin,
@@ -21,13 +24,15 @@ const {
   coreTokenQueryPlugin,
   AgentMode,
 } = require("hedera-agent-kit");
-const readline = require("readline");
+
+const { ChatPromptTemplate } = require("@langchain/core/prompts");
+const { AgentExecutor, createToolCallingAgent } = require("langchain/agents");
 const { HumanMessage, AIMessage } = require("@langchain/core/messages");
-const crypto = require("crypto");
 const { DynamicStructuredTool } = require("@langchain/core/tools");
 const { z } = require("zod");
+const crypto = require("crypto");
 
-// A2A Message Class
+// ------------------- Helper Class -------------------
 class A2AMessage {
   constructor(type, content, agentId, accountId) {
     this.id = crypto.randomUUID();
@@ -49,7 +54,7 @@ class A2AMessage {
   }
 }
 
-// Specialized Agent Classes
+// ------------------- Hotel Agent -------------------
 class HotelAgent {
   constructor(accountId, privateKey, topicId, client) {
     this.name = "Hotel Agent";
@@ -62,20 +67,16 @@ class HotelAgent {
 
   startListening() {
     if (this.isListening) return;
-    console.log(`\n🏨 Hotel Agent started listening...`);
-
+    console.log("🏨 Hotel Agent listening...");
     const now = Math.floor(Date.now() / 1000);
     new TopicMessageQuery()
       .setTopicId(this.topicId)
       .setStartTime(now)
       .subscribe(this.client, null, (message) => {
         try {
-          const messageString = Buffer.from(message.contents).toString();
-          const a2aMessage = JSON.parse(messageString);
-          if (a2aMessage.sender.account_id !== this.accountId) {
-            this.handleMessage(a2aMessage);
-          }
-        } catch (error) {}
+          const msg = JSON.parse(Buffer.from(message.contents).toString());
+          if (msg.sender.account_id !== this.accountId) this.handleMessage(msg);
+        } catch {}
       });
     this.isListening = true;
   }
@@ -85,14 +86,11 @@ class HotelAgent {
       message.message_type === "request" &&
       message.content.service === "hotel_booking"
     ) {
-      console.log(`\n📥 Hotel Agent: Received booking request`);
-      const details = message.content.details;
-
+      console.log("📥 Hotel Agent: booking request received");
       setTimeout(async () => {
         const pricePerNight = 3;
         const nights = 2;
         const totalPrice = pricePerNight * nights;
-
         await this.sendMessage("response", {
           status: "available",
           options: [
@@ -104,70 +102,22 @@ class HotelAgent {
               currency: "HBAR",
             },
           ],
-          booking_reference: "HOTEL-" + crypto.randomUUID().substring(0, 8),
         });
-        console.log(`✅ Hotel Agent: Sent offer - ${totalPrice} HBAR`);
-      }, 2000);
-    }
-
-    if (
-      message.message_type === "negotiation" &&
-      message.content.counter_offer
-    ) {
-      const counterPrice = message.content.counter_offer.total_price;
-      console.log(
-        `\n📥 Hotel Agent: Counter offer received - ${counterPrice} HBAR`
-      );
-
-      setTimeout(async () => {
-        const minPrice = 4;
-        if (counterPrice >= minPrice) {
-          await this.sendMessage("negotiation", {
-            final_offer: { total_price: counterPrice, currency: "HBAR" },
-            status: "accepted",
-          });
-          console.log(`✅ Hotel Agent: Accepted ${counterPrice} HBAR`);
-        } else {
-          await this.sendMessage("negotiation", {
-            status: "rejected",
-            minimum_price: minPrice,
-          });
-          console.log(`❌ Hotel Agent: Rejected - minimum is ${minPrice} HBAR`);
-        }
-      }, 2000);
-    }
-
-    if (message.message_type === "payment") {
-      console.log(
-        `\n💰 Hotel Agent: Payment received - ${message.content.amount} HBAR`
-      );
-      setTimeout(async () => {
-        await this.sendMessage("response", {
-          status: "confirmed",
-          booking_details: {
-            confirmation_number: "CONF-" + crypto.randomUUID().substring(0, 8),
-            total_paid: message.content.amount + " HBAR",
-          },
-        });
-        console.log(`✅ Hotel Agent: Booking confirmed!`);
-      }, 2000);
+        console.log(`✅ Hotel Agent: offer sent (${totalPrice} HBAR)`);
+      }, 1500);
     }
   }
 
   async sendMessage(type, content) {
-    const message = new A2AMessage(type, content, this.agentId, this.accountId);
-    const messageString = JSON.stringify(message.toJSON());
-
-    const submitTx = await new TopicMessageSubmitTransaction()
+    const msg = new A2AMessage(type, content, this.agentId, this.accountId);
+    await new TopicMessageSubmitTransaction()
       .setTopicId(this.topicId)
-      .setMessage(messageString)
+      .setMessage(JSON.stringify(msg.toJSON()))
       .execute(this.client);
-
-    await submitTx.getReceipt(this.client);
-    return message;
   }
 }
 
+// ------------------- Insurance Agent -------------------
 class InsuranceAgent {
   constructor(accountId, privateKey, topicId, client) {
     this.name = "Insurance Agent";
@@ -180,20 +130,16 @@ class InsuranceAgent {
 
   startListening() {
     if (this.isListening) return;
-    console.log(`\n🛡️  Insurance Agent started listening...`);
-
+    console.log("🛡️ Insurance Agent listening...");
     const now = Math.floor(Date.now() / 1000);
     new TopicMessageQuery()
       .setTopicId(this.topicId)
       .setStartTime(now)
       .subscribe(this.client, null, (message) => {
         try {
-          const messageString = Buffer.from(message.contents).toString();
-          const a2aMessage = JSON.parse(messageString);
-          if (a2aMessage.sender.account_id !== this.accountId) {
-            this.handleMessage(a2aMessage);
-          }
-        } catch (error) {}
+          const msg = JSON.parse(Buffer.from(message.contents).toString());
+          if (msg.sender.account_id !== this.accountId) this.handleMessage(msg);
+        } catch {}
       });
     this.isListening = true;
   }
@@ -203,67 +149,30 @@ class InsuranceAgent {
       message.message_type === "request" &&
       message.content.service === "travel_insurance"
     ) {
-      console.log(`\n📥 Insurance Agent: Received insurance request`);
-
+      console.log("📥 Insurance Agent: insurance request received");
       setTimeout(async () => {
         const tripCost = message.content.trip_cost || 10;
         const premium = parseFloat((tripCost * 0.15).toFixed(2));
-
         await this.sendMessage("response", {
           status: "available",
-          coverage_options: [
-            {
-              tier: "Standard Coverage",
-              premium: premium,
-              coverage_amount: tripCost,
-              currency: "HBAR",
-              benefits: [
-                "Trip cancellation",
-                "Medical emergency",
-                "Lost luggage",
-              ],
-            },
-          ],
-          policy_reference: "INS-" + crypto.randomUUID().substring(0, 8),
+          premium,
+          currency: "HBAR",
         });
-        console.log(`✅ Insurance Agent: Sent quote - ${premium} HBAR premium`);
-      }, 2000);
-    }
-
-    if (message.message_type === "payment") {
-      console.log(
-        `\n💰 Insurance Agent: Payment received - ${message.content.amount} HBAR`
-      );
-      setTimeout(async () => {
-        await this.sendMessage("response", {
-          status: "confirmed",
-          policy_details: {
-            policy_number:
-              "POL-" + crypto.randomUUID().substring(0, 10).toUpperCase(),
-            coverage: message.content.description,
-            premium_paid: message.content.amount + " HBAR",
-          },
-        });
-        console.log(`✅ Insurance Agent: Policy issued!`);
-      }, 2000);
+        console.log(`✅ Insurance Agent: quote sent (${premium} HBAR)`);
+      }, 1500);
     }
   }
 
   async sendMessage(type, content) {
-    const message = new A2AMessage(type, content, this.agentId, this.accountId);
-    const messageString = JSON.stringify(message.toJSON());
-
-    const submitTx = await new TopicMessageSubmitTransaction()
+    const msg = new A2AMessage(type, content, this.agentId, this.accountId);
+    await new TopicMessageSubmitTransaction()
       .setTopicId(this.topicId)
-      .setMessage(messageString)
+      .setMessage(JSON.stringify(msg.toJSON()))
       .execute(this.client);
-
-    await submitTx.getReceipt(this.client);
-    return message;
   }
 }
 
-// AI Provider
+// ------------------- LLM Provider -------------------
 function createLLM() {
   if (process.env.GROQ_API_KEY) {
     const { ChatGroq } = require("@langchain/groq");
@@ -279,270 +188,168 @@ function createLLM() {
   });
 }
 
-async function main() {
+// ------------------- Setup Web Server -------------------
+const app = express();
+const server = http.createServer(app);
+const wss = new WebSocketServer({ server });
+app.use(express.static(path.join(__dirname, "public")));
+
+// ------------------- Main -------------------
+(async () => {
+  console.log("\n🤖 Initializing Smart AI Agent System...\n");
+  const llm = createLLM();
+
+  // Hedera setup
+  let privKeyStr = process.env.HEDERA_PRIVATE_KEY.trim().replace(
+    /^["']|["']$/g,
+    "",
+  );
+  let privateKey;
   try {
-    console.log("\n🤖 Initializing Smart AI Agent System...\n");
+    privateKey = PrivateKey.fromStringECDSA(privKeyStr);
+  } catch {
+    privateKey = PrivateKey.fromString(privKeyStr);
+  }
 
-    const llm = createLLM();
+  const client = Client.forTestnet().setOperator(
+    process.env.HEDERA_ACCOUNT_ID,
+    privateKey,
+  );
+  const topicId = process.env.A2A_TOPIC_ID;
 
-    // Setup Hedera client
-    let privateKeyString = process.env.HEDERA_PRIVATE_KEY.trim();
-    privateKeyString = privateKeyString
-      .replace(/^["']|["']$/g, "")
-      .replace(/^0x/i, "");
-    let privateKey;
-    try {
-      privateKey = PrivateKey.fromStringECDSA(privateKeyString);
-    } catch (e) {
-      privateKey = PrivateKey.fromString(privateKeyString);
-    }
+  // Initialize sub-agents
+  const hotelAgent = new HotelAgent(
+    process.env.HOTEL_ACCOUNT_ID,
+    privateKey,
+    topicId,
+    client,
+  );
+  const insuranceAgent = new InsuranceAgent(
+    process.env.INSURANCE_ACCOUNT_ID,
+    privateKey,
+    topicId,
+    client,
+  );
+  hotelAgent.startListening();
+  insuranceAgent.startListening();
 
-    const client = Client.forTestnet().setOperator(
-      process.env.HEDERA_ACCOUNT_ID,
-      privateKey
-    );
+  // Hedera Toolkit + tools
+  const toolkit = new HederaLangchainToolkit({
+    client,
+    configuration: {
+      mode: AgentMode.AUTONOMOUS,
+      plugins: [
+        coreAccountPlugin,
+        coreAccountQueryPlugin,
+        coreConsensusPlugin,
+        coreConsensusQueryPlugin,
+        coreTokenPlugin,
+        coreTokenQueryPlugin,
+      ],
+    },
+  });
 
-    const topicId = process.env.A2A_TOPIC_ID;
-
-    // Initialize specialized agents (dormant until needed)
-    let hotelAgent = null;
-    let insuranceAgent = null;
-
-    if (process.env.HOTEL_ACCOUNT_ID && process.env.HOTEL_PRIVATE_KEY) {
-      const hotelKey = PrivateKey.fromStringECDSA(
-        process.env.HOTEL_PRIVATE_KEY.replace(/^["']|["']$/g, "").replace(
-          /^0x/i,
-          ""
-        )
-      );
-      const hotelClient = Client.forTestnet().setOperator(
-        process.env.HOTEL_ACCOUNT_ID,
-        hotelKey
-      );
-      hotelAgent = new HotelAgent(
-        process.env.HOTEL_ACCOUNT_ID,
-        hotelKey,
-        topicId,
-        hotelClient
-      );
-    }
-
-    if (process.env.INSURANCE_ACCOUNT_ID && process.env.INSURANCE_PRIVATE_KEY) {
-      const insuranceKey = PrivateKey.fromStringECDSA(
-        process.env.INSURANCE_PRIVATE_KEY.replace(/^["']|["']$/g, "").replace(
-          /^0x/i,
-          ""
-        )
-      );
-      const insuranceClient = Client.forTestnet().setOperator(
-        process.env.INSURANCE_ACCOUNT_ID,
-        insuranceKey
-      );
-      insuranceAgent = new InsuranceAgent(
-        process.env.INSURANCE_ACCOUNT_ID,
-        insuranceKey,
-        topicId,
-        insuranceClient
-      );
-    }
-
-    // Setup Hedera Agent Kit
-    const allPlugins = [
-      coreAccountPlugin,
-      coreAccountQueryPlugin,
-      coreConsensusPlugin,
-      coreConsensusQueryPlugin,
-      coreTokenPlugin,
-      coreTokenQueryPlugin,
-    ].filter((plugin) => plugin !== undefined && plugin !== null);
-
-    const hederaAgentToolkit = new HederaLangchainToolkit({
-      client,
-      configuration: {
-        mode: AgentMode.AUTONOMOUS,
-        plugins: allPlugins,
-      },
-    });
-
-    // Custom tools for A2A communication
-    const bookHotelTool = new DynamicStructuredTool({
+  const tools = [
+    ...toolkit.getTools(),
+    new DynamicStructuredTool({
       name: "book_hotel",
-      description:
-        "Book a hotel by sending A2A message to hotel agent. Use this when user wants to book a hotel or accommodation.",
+      description: "Book hotel via A2A",
       schema: z.object({
-        destination: z.string().describe("Destination city/location"),
-        checkIn: z.string().describe("Check-in date (YYYY-MM-DD)"),
-        checkOut: z.string().describe("Check-out date (YYYY-MM-DD)"),
-        maxBudget: z.number().optional().describe("Maximum budget in HBAR"),
+        destination: z.string(),
+        checkIn: z.string(),
+        checkOut: z.string(),
       }),
-      func: async ({ destination, checkIn, checkOut, maxBudget }) => {
-        if (hotelAgent && !hotelAgent.isListening) {
-          hotelAgent.startListening();
-        }
-
-        const message = new A2AMessage(
+      func: async ({ destination, checkIn, checkOut }) => {
+        const msg = new A2AMessage(
           "request",
           {
             service: "hotel_booking",
             details: { destination, check_in: checkIn, check_out: checkOut },
-            max_budget: maxBudget || 10,
           },
           "main-agent",
-          process.env.HEDERA_ACCOUNT_ID
+          process.env.HEDERA_ACCOUNT_ID,
         );
-
-        const messageString = JSON.stringify(message.toJSON());
-        const submitTx = await new TopicMessageSubmitTransaction()
+        await new TopicMessageSubmitTransaction()
           .setTopicId(topicId)
-          .setMessage(messageString)
+          .setMessage(JSON.stringify(msg.toJSON()))
           .execute(client);
-
-        await submitTx.getReceipt(client);
-
-        return `Hotel booking request sent to hotel agent. Destination: ${destination}, Check-in: ${checkIn}, Check-out: ${checkOut}. The hotel agent will respond with availability and pricing soon. Check the conversation for updates.`;
+        return `Hotel booking request sent for ${destination}.`;
       },
-    });
-
-    const getInsuranceTool = new DynamicStructuredTool({
+    }),
+    new DynamicStructuredTool({
       name: "get_travel_insurance",
-      description:
-        "Get travel insurance quote by sending A2A message to insurance agent. Use when user wants travel insurance or trip protection.",
-      schema: z.object({
-        tripCost: z.number().describe("Total trip cost in HBAR"),
-        destination: z.string().describe("Travel destination"),
-      }),
+      description: "Request travel insurance via A2A",
+      schema: z.object({ tripCost: z.number(), destination: z.string() }),
       func: async ({ tripCost, destination }) => {
-        if (insuranceAgent && !insuranceAgent.isListening) {
-          insuranceAgent.startListening();
-        }
-
-        const message = new A2AMessage(
+        const msg = new A2AMessage(
           "request",
-          {
-            service: "travel_insurance",
-            trip_cost: tripCost,
-            destination: destination,
-          },
+          { service: "travel_insurance", trip_cost: tripCost, destination },
           "main-agent",
-          process.env.HEDERA_ACCOUNT_ID
+          process.env.HEDERA_ACCOUNT_ID,
         );
-
-        const messageString = JSON.stringify(message.toJSON());
-        const submitTx = await new TopicMessageSubmitTransaction()
+        await new TopicMessageSubmitTransaction()
           .setTopicId(topicId)
-          .setMessage(messageString)
+          .setMessage(JSON.stringify(msg.toJSON()))
           .execute(client);
-
-        await submitTx.getReceipt(client);
-
-        return `Insurance quote request sent to insurance agent for trip costing ${tripCost} HBAR to ${destination}. The insurance agent will respond with coverage options soon.`;
+        return `Insurance request sent for ${destination}.`;
       },
-    });
+    }),
+  ];
 
-    // Combine all tools
-    const tools = [
-      ...hederaAgentToolkit.getTools(),
-      bookHotelTool,
-      getInsuranceTool,
-    ];
+  const prompt = ChatPromptTemplate.fromMessages([
+    [
+      "system",
+      "You are a Hedera-enabled AI travel agent with hotel and insurance assistants.",
+    ],
+    ["placeholder", "{chat_history}"],
+    ["human", "{input}"],
+    ["placeholder", "{agent_scratchpad}"],
+  ]);
 
-    const prompt = ChatPromptTemplate.fromMessages([
-      [
-        "system",
-        `You are a smart AI travel assistant with FULL CONTROL over Hedera blockchain operations and multi-agent coordination.
+  const agent = await createToolCallingAgent({ llm, tools, prompt });
+  const agentExecutor = new AgentExecutor({ agent, tools });
+  console.log(
+    "✅ Smart AI Agent initialized and ready for WebSocket connections\n",
+  );
 
-CAPABILITIES:
-1. **Standard Hedera Operations**: Transfer HBAR, create tokens, manage accounts, query balances
-2. **Hotel Booking**: Use book_hotel tool when user wants to book hotels/accommodation
-3. **Travel Insurance**: Use get_travel_insurance tool when user wants trip insurance/protection
-4. **Multi-Agent Coordination**: You can activate specialized agents (hotel, insurance) on-demand
-
-AGENT ACTIVATION LOGIC:
-- User asks about hotels → Activate hotel agent via book_hotel tool
-- User asks about insurance → Activate insurance agent via get_travel_insurance tool
-- User asks other things → Use standard Hedera tools
-
-Your account: ${process.env.HEDERA_ACCOUNT_ID}
-A2A Topic: ${topicId}
-
-Be conversational, helpful, and proactive. When agents respond, inform the user about their offers.`,
-      ],
-      ["placeholder", "{chat_history}"],
-      ["human", "{input}"],
-      ["placeholder", "{agent_scratchpad}"],
-    ]);
-
-    const agent = await createToolCallingAgent({ llm, tools, prompt });
-    const agentExecutor = new AgentExecutor({
-      agent,
-      tools,
-      verbose: false,
-      maxIterations: 15,
-    });
-
-    console.log(`✅ Smart AI Agent initialized!`);
-    console.log(`🔑 Account: ${process.env.HEDERA_ACCOUNT_ID}`);
-    console.log(
-      `📦 Tools: ${tools.length} (${allPlugins.length} Hedera + 2 A2A)`
-    );
-    console.log(
-      `🤖 Specialized Agents: ${hotelAgent ? "✅ Hotel" : "❌ Hotel"} | ${
-        insuranceAgent ? "✅ Insurance" : "❌ Insurance"
-      }\n`
-    );
-
+  // --- WebSocket Chat Interface ---
+  wss.on("connection", (ws) => {
+    console.log("Client connected via WebSocket");
     const chatHistory = [];
-    const rl = readline.createInterface({
-      input: process.stdin,
-      output: process.stdout,
-      terminal: true,
-    });
 
-    console.log(
-      '💬 Ready! Try: "I need to book a hotel" or "What\'s my balance?"\n'
-    );
-
-    const getUserInput = () => {
-      return new Promise((resolve) => {
-        rl.question("You: ", (answer) => {
-          resolve(answer);
-        });
-      });
-    };
-
-    while (true) {
+    ws.on("message", async (raw) => {
+      let msg;
       try {
-        const userInput = await getUserInput();
+        msg = JSON.parse(raw);
+      } catch {
+        msg = { type: "input", content: raw.toString() };
+      }
 
-        if (userInput.toLowerCase().trim() === "exit") {
-          console.log("\n👋 Goodbye!");
-          rl.close();
-          process.exit(0);
-        }
-
-        if (!userInput.trim()) continue;
-
+      if (msg.type === "input" && msg.content) {
         const response = await agentExecutor.invoke({
-          input: userInput,
+          input: msg.content,
           chat_history: chatHistory,
         });
 
-        console.log(`Agent: ${response.output}\n`);
-
-        chatHistory.push(new HumanMessage(userInput));
+        chatHistory.push(new HumanMessage(msg.content));
         chatHistory.push(new AIMessage(response.output));
 
-        if (chatHistory.length > 10) {
-          chatHistory.splice(0, 2);
-        }
-      } catch (error) {
-        console.error(`Agent: ❌ Error - ${error.message}\n`);
+        ws.send(JSON.stringify({ sender: "agent", content: response.output }));
       }
-    }
-  } catch (error) {
-    console.error("Failed to initialize:", error);
-    process.exit(1);
-  }
-}
 
-main().catch(console.error);
+      // broadcast to other clients (no echo)
+      wss.clients.forEach((client) => {
+        if (client !== ws && client.readyState === WebSocket.OPEN) {
+          client.send(JSON.stringify({ sender: "user", content: msg.content }));
+        }
+      });
+    });
+
+    ws.on("close", () => console.log("Client disconnected"));
+  });
+
+  const PORT = process.env.PORT || 3000;
+  server.listen(PORT, () =>
+    console.log(`🌐 Server running at http://localhost:${PORT}`),
+  );
+})();

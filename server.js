@@ -17,7 +17,7 @@ wss.on("connection", (ws) => {
 
   // Spawn your agent.js script as a child process
   // We use 'node -u' for unbuffered output, which gives us data line-by-line
-  const agentProcess = spawn("node", ["-u", "runAgents.js"]);
+  const agentProcess = spawn("node", ["runAgents.js"]);
 
   // 1. Send data from the Agent's terminal (stdout) to the Frontend
   agentProcess.stdout.on("data", (data) => {
@@ -74,7 +74,7 @@ wss.on("connection", (ws) => {
   agentProcess.on("close", (code) => {
     console.log(`Agent process exited with code ${code}`);
     ws.send(
-      JSON.stringify({ sender: "system", content: "Agent has disconnected." })
+      JSON.stringify({ sender: "system", content: "Agent has disconnected." }),
     );
     ws.close();
   });
@@ -86,7 +86,7 @@ wss.on("connection", (ws) => {
   });
 });
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 4000;
 server.listen(PORT, () => {
   console.log(`Frontend server running at http://localhost:${PORT}`);
   console.log("Waiting for a client to connect and start the agent...");
