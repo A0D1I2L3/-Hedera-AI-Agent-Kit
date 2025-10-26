@@ -83,8 +83,8 @@ This project uses environment variables to securely manage your Hedera account c
     ```
     *Example format:*
     ```bash
-    # HEDERA_ACCOUNT_ID="0.0.7129064"
-    # HEDERA_PRIVATE_KEY="0x9f99d98c130eafcc70dc768c542f25a44350dd986b101dd6131c322a627bc5f6"
+    # HEDERA_ACCOUNT_ID="0.0.xxxxxxx"
+    # HEDERA_PRIVATE_KEY="0xXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
     ```
 
 3.  **Create the Main Agent Topic:**
@@ -99,7 +99,7 @@ This project uses environment variables to securely manage your Hedera account c
 
     ```bash
     AGENT_ID=hedera-travel-agent
-    A2A_TOPIC_ID=0.0.7131990
+    A2A_TOPIC_ID=0.0.x
     ```
 
 5.  **Create Sub-Agents (Hotel & Insurance):**
@@ -114,9 +114,9 @@ This project uses environment variables to securely manage your Hedera account c
     Finally, add the credentials for the newly created agents to your `.env` file. These are pre-defined for this example.
 
     ```bash
-    HOTEL_ACCOUNT_ID="0.0.7133955"
-    HOTEL_PRIVATE_KEY="3030020100300706052b8104000a0422042069a2454ebae883eb577bcf99bd47688e0ff8365c7991cb204885282fb31ea99e"
-    INSURANCE_ACCOUNT_ID="0.0.7134185"
+    HOTEL_ACCOUNT_ID="0.0.xxxxxxx"
+    HOTEL_PRIVATE_KEY="XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+    INSURANCE_ACCOUNT_ID="0.0.xxxxxxx"
     INSURANCE_PRIVATE_KEY="3030020100300706052b8104000a04220420c594406ce5b820f62b89ae7046630509620e6ddf4b2a024644252432e0e048af"
     ```
 
@@ -129,10 +129,10 @@ HEDERA_PRIVATE_KEY="0x................"
 
 # Main agent identifiers
 AGENT_ID=hedera-travel-agent
-A2A_TOPIC_ID=0.0.7131990
+A2A_TOPIC_ID=0.0.xxxxxxx
 
 # Sub-agent credentials
-HOTEL_ACCOUNT_ID="0.0.7133955"
+HOTEL_ACCOUNT_ID="0.0.xxxxxxx"
 HOTEL_PRIVATE_KEY="XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
-INSURANCE_ACCOUNT_ID="0.0.7134185"
+INSURANCE_ACCOUNT_ID="0.0.xxxxxxx"
 INSURANCE_PRIVATE_KEY="XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
