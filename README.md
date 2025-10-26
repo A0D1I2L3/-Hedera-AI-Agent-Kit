@@ -98,23 +98,6 @@ The AgentH pattern enables decentralized coordination for:
 
 ---
 
-## Why It Matters
-
-AgentH proves autonomous agents can coordinate complex services entirely on-chain:
-
-✅ **No Centralized Server** — Agents are independent participants
-✅ **Verifiable Coordination** — Every message recorded immutably on Hedera
-✅ **Transparent Economics** — All pricing visible on HashScan
-✅ **Trustless Execution** — No single point of control
-
-This is a blueprint for **agent-to-agent economies** where AI participants transact as peers, with Hedera providing trustless infrastructure.
-
----
-
-## Built At
-
-**ETHOnline 2025** — Exploring the future of autonomous agent economies on Hedera
-
 ## Get Started
 
 Follow these steps to set up your environment and run the agents.
@@ -189,3 +172,6 @@ HOTEL_ACCOUNT_ID="0.0.xxxxxxx"
 HOTEL_PRIVATE_KEY="XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
 INSURANCE_ACCOUNT_ID="0.0.xxxxxxx"
 INSURANCE_PRIVATE_KEY="XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+
+
+Built with  at **ETHOnline 2025**
