@@ -110,17 +110,26 @@ class HotelAgent {
             },
           ],
           booking_reference: "HOTEL-" + crypto.randomUUID().substring(0, 8),
-        });
+        }, msg.id); // Pass original request ID
         console.log("Hotel offer sent:", price, "HBAR");
       }, 1500);
     }
   }
 
-  async sendMessage(type, content) {
-    const msg = new A2AMessage(type, content, this.agentId, this.accountId);
+  async sendMessage(type, content, originalRequestId) {
+    // If originalRequestId is provided, use it (for responses)
+    // Otherwise create a new message ID
+    const msgData = {
+      id: originalRequestId || crypto.randomUUID(),
+      timestamp: new Date().toISOString(),
+      protocol_version: "1.0",
+      message_type: type,
+      sender: { agent_id: this.agentId, account_id: this.accountId },
+      content: content,
+    };
     const tx = await new TopicMessageSubmitTransaction()
       .setTopicId(this.topicId)
-      .setMessage(JSON.stringify(msg))
+      .setMessage(JSON.stringify(msgData))
       .execute(this.client);
     await tx.getReceipt(this.client);
   }
@@ -182,17 +191,26 @@ class InsuranceAgent {
             },
           ],
           policy_reference: "INS-" + crypto.randomUUID().substring(0, 8),
-        });
+        }, msg.id); // Pass original request ID
         console.log("Insurance quote sent:", premium, "HBAR");
       }, 1500);
     }
   }
 
-  async sendMessage(type, content) {
-    const msg = new A2AMessage(type, content, this.agentId, this.accountId);
+  async sendMessage(type, content, originalRequestId) {
+    // If originalRequestId is provided, use it (for responses)
+    // Otherwise create a new message ID
+    const msgData = {
+      id: originalRequestId || crypto.randomUUID(),
+      timestamp: new Date().toISOString(),
+      protocol_version: "1.0",
+      message_type: type,
+      sender: { agent_id: this.agentId, account_id: this.accountId },
+      content: content,
+    };
     const tx = await new TopicMessageSubmitTransaction()
       .setTopicId(this.topicId)
-      .setMessage(JSON.stringify(msg))
+      .setMessage(JSON.stringify(msgData))
       .execute(this.client);
     await tx.getReceipt(this.client);
   }
@@ -269,6 +287,35 @@ async function initializeAgent() {
     },
   });
 
+  // Response storage and promise management
+  const pendingRequests = new Map();
+  
+  // Start specialized agents if configured
+  if (hotelAgent) hotelAgent.startListening();
+  if (insuranceAgent) insuranceAgent.startListening();
+  
+  // Listen for responses from specialized agents
+  const now = Math.floor(Date.now() / 1000);
+  new TopicMessageQuery()
+    .setTopicId(topicId)
+    .setStartTime(now)
+    .subscribe(client, null, (message) => {
+      try {
+        const msg = JSON.parse(Buffer.from(message.contents).toString());
+        if (
+          msg.message_type === "response" &&
+          msg.sender.account_id !== process.env.HEDERA_ACCOUNT_ID &&
+          pendingRequests.has(msg.id)
+        ) {
+          const resolver = pendingRequests.get(msg.id);
+          resolver(msg);
+          pendingRequests.delete(msg.id);
+        }
+      } catch (err) {
+        // Ignore parse errors
+      }
+    });
+
   const bookHotelTool = new DynamicStructuredTool({
     name: "book_hotel",
     description: "Send hotel booking A2A request.",
@@ -279,7 +326,6 @@ async function initializeAgent() {
       maxBudget: z.number().optional(),
     }),
     func: async ({ destination, checkIn, checkOut, maxBudget }) => {
-      if (hotelAgent && !hotelAgent.isListening) hotelAgent.startListening();
       const msg = new A2AMessage(
         "request",
         {
@@ -290,12 +336,32 @@ async function initializeAgent() {
         "main-agent",
         process.env.HEDERA_ACCOUNT_ID,
       );
+      const msgJson = msg.toJSON();
       const tx = await new TopicMessageSubmitTransaction()
         .setTopicId(topicId)
-        .setMessage(JSON.stringify(msg))
+        .setMessage(JSON.stringify(msgJson))
         .execute(client);
       await tx.getReceipt(client);
-      return `Hotel booking request sent to ${destination}.`;
+      
+      // Wait for response (max 10 seconds)
+      const response = await new Promise((resolve) => {
+        pendingRequests.set(msgJson.id, resolve);
+        setTimeout(() => {
+          pendingRequests.delete(msgJson.id);
+          resolve({ content: { status: "timeout" } });
+        }, 10000);
+      });
+      
+      if (response.content.status === "timeout") {
+        return "Hotel booking request sent, but no response received yet.";
+      }
+      
+      const hotelResponse = response.content;
+      if (hotelResponse.status === "available" && hotelResponse.options) {
+        const option = hotelResponse.options[0];
+        return `Hotel availability confirmed! ${option.room_type} for ${option.total_nights} nights at ${option.total_price} ${option.currency} total (${option.price_per_night} ${option.currency}/night). Booking reference: ${hotelResponse.booking_reference || 'N/A'}`;
+      }
+      return "Hotel booking request processed.";
     },
   });
 
@@ -304,20 +370,38 @@ async function initializeAgent() {
     description: "Send travel insurance A2A request.",
     schema: z.object({ tripCost: z.number(), destination: z.string() }),
     func: async ({ tripCost, destination }) => {
-      if (insuranceAgent && !insuranceAgent.isListening)
-        insuranceAgent.startListening();
       const msg = new A2AMessage(
         "request",
         { service: "travel_insurance", trip_cost: tripCost, destination },
         "main-agent",
         process.env.HEDERA_ACCOUNT_ID,
       );
+      const msgJson = msg.toJSON();
       const tx = await new TopicMessageSubmitTransaction()
         .setTopicId(topicId)
-        .setMessage(JSON.stringify(msg))
+        .setMessage(JSON.stringify(msgJson))
         .execute(client);
       await tx.getReceipt(client);
-      return `Insurance quote request sent for trip to ${destination} (${tripCost} HBAR).`;
+      
+      // Wait for response (max 10 seconds)
+      const response = await new Promise((resolve) => {
+        pendingRequests.set(msgJson.id, resolve);
+        setTimeout(() => {
+          pendingRequests.delete(msgJson.id);
+          resolve({ content: { status: "timeout" } });
+        }, 10000);
+      });
+      
+      if (response.content.status === "timeout") {
+        return "Insurance request sent, but no response received yet.";
+      }
+      
+      const insuranceResponse = response.content;
+      if (insuranceResponse.status === "available" && insuranceResponse.coverage_options) {
+        const option = insuranceResponse.coverage_options[0];
+        return `Travel insurance quote received! ${option.tier}: ${option.premium} ${option.currency} for coverage including ${option.benefits.join(", ")}. Policy reference: ${insuranceResponse.policy_reference || 'N/A'}`;
+      }
+      return "Insurance request processed.";
     },
   });
 

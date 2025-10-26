@@ -91,18 +91,30 @@ class HotelAgent {
         const pricePerNight = 3;
         const nights = 2;
         const totalPrice = pricePerNight * nights;
-        await this.sendMessage("response", {
-          status: "available",
-          options: [
-            {
-              room_type: "Standard Room",
-              price_per_night: pricePerNight,
-              total_nights: nights,
-              total_price: totalPrice,
-              currency: "HBAR",
-            },
-          ],
-        });
+        const responseMsg = {
+          id: message.id, // Use original request ID
+          timestamp: new Date().toISOString(),
+          protocol_version: "1.0",
+          message_type: "response",
+          sender: { agent_id: this.agentId, account_id: this.accountId },
+          content: {
+            status: "available",
+            options: [
+              {
+                room_type: "Standard Room",
+                price_per_night: pricePerNight,
+                total_nights: nights,
+                total_price: totalPrice,
+                currency: "HBAR",
+              },
+            ],
+            booking_reference: crypto.randomUUID().substring(0, 8),
+          },
+        };
+        await new TopicMessageSubmitTransaction()
+          .setTopicId(this.topicId)
+          .setMessage(JSON.stringify(responseMsg))
+          .execute(this.client);
         console.log(`✅ Hotel Agent: offer sent (${totalPrice} HBAR)`);
       }, 1500);
     }
@@ -153,11 +165,33 @@ class InsuranceAgent {
       setTimeout(async () => {
         const tripCost = message.content.trip_cost || 10;
         const premium = parseFloat((tripCost * 0.15).toFixed(2));
-        await this.sendMessage("response", {
-          status: "available",
-          premium,
-          currency: "HBAR",
-        });
+        const responseMsg = {
+          id: message.id, // Use original request ID
+          timestamp: new Date().toISOString(),
+          protocol_version: "1.0",
+          message_type: "response",
+          sender: { agent_id: this.agentId, account_id: this.accountId },
+          content: {
+            status: "available",
+            coverage_options: [
+              {
+                tier: "Standard Coverage",
+                premium: premium,
+                currency: "HBAR",
+                benefits: [
+                  "Trip cancellation",
+                  "Medical emergency",
+                  "Lost luggage",
+                ],
+              },
+            ],
+            policy_reference: crypto.randomUUID().substring(0, 8),
+          },
+        };
+        await new TopicMessageSubmitTransaction()
+          .setTopicId(this.topicId)
+          .setMessage(JSON.stringify(responseMsg))
+          .execute(this.client);
         console.log(`✅ Insurance Agent: quote sent (${premium} HBAR)`);
       }, 1500);
     }
@@ -249,11 +283,38 @@ app.use(express.static(path.join(__dirname, "public")));
     },
   });
 
+  // Response storage and promise management - keyed by original request ID
+  const pendingRequests = new Map();
+  
+  // Listen for responses from specialized agents
+  const now = Math.floor(Date.now() / 1000);
+  new TopicMessageQuery()
+    .setTopicId(topicId)
+    .setStartTime(now)
+    .subscribe(client, null, (message) => {
+      try {
+        const msg = JSON.parse(Buffer.from(message.contents).toString());
+        // Only process messages that are responses AND not from our own account
+        // The response should have the same ID as the original request
+        if (
+          msg.message_type === "response" &&
+          msg.sender.account_id !== process.env.HEDERA_ACCOUNT_ID &&
+          pendingRequests.has(msg.id)
+        ) {
+          const resolver = pendingRequests.get(msg.id);
+          resolver(msg);
+          pendingRequests.delete(msg.id);
+        }
+      } catch (err) {
+        // Ignore parse errors
+      }
+    });
+
   const tools = [
     ...toolkit.getTools(),
     new DynamicStructuredTool({
       name: "book_hotel",
-      description: "Book hotel via A2A",
+      description: "Book hotel via A2A and wait for response",
       schema: z.object({
         destination: z.string(),
         checkIn: z.string(),
@@ -273,12 +334,31 @@ app.use(express.static(path.join(__dirname, "public")));
           .setTopicId(topicId)
           .setMessage(JSON.stringify(msg.toJSON()))
           .execute(client);
-        return `Hotel booking request sent for ${destination}.`;
+        
+        // Wait for response (max 10 seconds)
+        const response = await new Promise((resolve) => {
+          pendingRequests.set(msg.id, resolve);
+          setTimeout(() => {
+            pendingRequests.delete(msg.id);
+            resolve({ content: { status: "timeout" } });
+          }, 10000);
+        });
+        
+        if (response.content.status === "timeout") {
+          return "Hotel booking request sent, but no response received yet.";
+        }
+        
+        const hotelResponse = response.content;
+        if (hotelResponse.status === "available" && hotelResponse.options) {
+          const option = hotelResponse.options[0];
+          return `Hotel availability confirmed! ${option.room_type} for ${option.total_nights} nights at ${option.total_price} ${option.currency} total (${option.price_per_night} ${option.currency}/night). Booking reference: ${hotelResponse.booking_reference || 'N/A'}`;
+        }
+        return "Hotel booking request processed.";
       },
     }),
     new DynamicStructuredTool({
       name: "get_travel_insurance",
-      description: "Request travel insurance via A2A",
+      description: "Request travel insurance via A2A and wait for response",
       schema: z.object({ tripCost: z.number(), destination: z.string() }),
       func: async ({ tripCost, destination }) => {
         const msg = new A2AMessage(
@@ -291,7 +371,26 @@ app.use(express.static(path.join(__dirname, "public")));
           .setTopicId(topicId)
           .setMessage(JSON.stringify(msg.toJSON()))
           .execute(client);
-        return `Insurance request sent for ${destination}.`;
+        
+        // Wait for response (max 10 seconds)
+        const response = await new Promise((resolve) => {
+          pendingRequests.set(msg.id, resolve);
+          setTimeout(() => {
+            pendingRequests.delete(msg.id);
+            resolve({ content: { status: "timeout" } });
+          }, 10000);
+        });
+        
+        if (response.content.status === "timeout") {
+          return "Insurance request sent, but no response received yet.";
+        }
+        
+        const insuranceResponse = response.content;
+        if (insuranceResponse.status === "available" && insuranceResponse.coverage_options) {
+          const option = insuranceResponse.coverage_options[0];
+          return `Travel insurance quote received! ${option.tier}: ${option.premium} ${option.currency} for coverage including ${option.benefits.join(", ")}. Policy reference: ${insuranceResponse.policy_reference || 'N/A'}`;
+        }
+        return "Insurance request processed.";
       },
     }),
   ];

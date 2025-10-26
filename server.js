@@ -17,7 +17,7 @@ wss.on("connection", (ws) => {
 
   // Spawn your agent.js script as a child process
   // We use 'node -u' for unbuffered output, which gives us data line-by-line
-  const agentProcess = spawn("node", ["runAgents.js"]);
+  const agentProcess = spawn("node", ["index.js"]);
 
   // 1. Send data from the Agent's terminal (stdout) to the Frontend
   agentProcess.stdout.on("data", (data) => {
