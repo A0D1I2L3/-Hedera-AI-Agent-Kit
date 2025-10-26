@@ -11,7 +11,6 @@ const {
   PrivateKey,
   TopicMessageSubmitTransaction,
   TopicMessageQuery,
-  Hbar,
 } = require("@hashgraph/sdk");
 
 const {
@@ -32,7 +31,7 @@ const { DynamicStructuredTool } = require("@langchain/core/tools");
 const { z } = require("zod");
 const crypto = require("crypto");
 
-// ------------------- Helper Class -------------------
+// ------------------- Helper Classes -------------------
 class A2AMessage {
   constructor(type, content, agentId, accountId) {
     this.id = crypto.randomUUID();
@@ -54,6 +53,37 @@ class A2AMessage {
   }
 }
 
+class SubscriptionManager {
+    constructor() {
+        this.subscription = null;
+    }
+
+    subscribe(client, topicId, onMessage) {
+        if (this.subscription) {
+            console.log("Already subscribed to the topic.");
+            return;
+        }
+
+        console.log("Subscribing to the topic...");
+        const now = Math.floor(Date.now() / 1000);
+        this.subscription = new TopicMessageQuery()
+            .setTopicId(topicId)
+            .setStartTime(now)
+            .subscribe(client, null, onMessage);
+        console.log("Subscribed to the topic.");
+    }
+
+    unsubscribe() {
+        if (this.subscription) {
+            this.subscription.unsubscribe();
+            this.subscription = null;
+            console.log("Unsubscribed from the topic.");
+        }
+    }
+}
+
+const subscriptionManager = new SubscriptionManager();
+
 // ------------------- Hotel Agent -------------------
 class HotelAgent {
   constructor(accountId, privateKey, topicId, client) {
@@ -62,23 +92,6 @@ class HotelAgent {
     this.accountId = accountId;
     this.topicId = topicId;
     this.client = client;
-    this.isListening = false;
-  }
-
-  startListening() {
-    if (this.isListening) return;
-    console.log("🏨 Hotel Agent listening...");
-    const now = Math.floor(Date.now() / 1000);
-    new TopicMessageQuery()
-      .setTopicId(this.topicId)
-      .setStartTime(now)
-      .subscribe(this.client, null, (message) => {
-        try {
-          const msg = JSON.parse(Buffer.from(message.contents).toString());
-          if (msg.sender.account_id !== this.accountId) this.handleMessage(msg);
-        } catch {}
-      });
-    this.isListening = true;
   }
 
   async handleMessage(message) {
@@ -119,14 +132,6 @@ class HotelAgent {
       }, 1500);
     }
   }
-
-  async sendMessage(type, content) {
-    const msg = new A2AMessage(type, content, this.agentId, this.accountId);
-    await new TopicMessageSubmitTransaction()
-      .setTopicId(this.topicId)
-      .setMessage(JSON.stringify(msg.toJSON()))
-      .execute(this.client);
-  }
 }
 
 // ------------------- Insurance Agent -------------------
@@ -137,23 +142,6 @@ class InsuranceAgent {
     this.accountId = accountId;
     this.topicId = topicId;
     this.client = client;
-    this.isListening = false;
-  }
-
-  startListening() {
-    if (this.isListening) return;
-    console.log("🛡️ Insurance Agent listening...");
-    const now = Math.floor(Date.now() / 1000);
-    new TopicMessageQuery()
-      .setTopicId(this.topicId)
-      .setStartTime(now)
-      .subscribe(this.client, null, (message) => {
-        try {
-          const msg = JSON.parse(Buffer.from(message.contents).toString());
-          if (msg.sender.account_id !== this.accountId) this.handleMessage(msg);
-        } catch {}
-      });
-    this.isListening = true;
   }
 
   async handleMessage(message) {
@@ -195,14 +183,6 @@ class InsuranceAgent {
         console.log(`✅ Insurance Agent: quote sent (${premium} HBAR)`);
       }, 1500);
     }
-  }
-
-  async sendMessage(type, content) {
-    const msg = new A2AMessage(type, content, this.agentId, this.accountId);
-    await new TopicMessageSubmitTransaction()
-      .setTopicId(this.topicId)
-      .setMessage(JSON.stringify(msg.toJSON()))
-      .execute(this.client);
   }
 }
 
@@ -264,8 +244,6 @@ app.use(express.static(path.join(__dirname, "public")));
     topicId,
     client,
   );
-  hotelAgent.startListening();
-  insuranceAgent.startListening();
 
   // Hedera Toolkit + tools
   const toolkit = new HederaLangchainToolkit({
@@ -287,28 +265,32 @@ app.use(express.static(path.join(__dirname, "public")));
   const pendingRequests = new Map();
   
   // Listen for responses from specialized agents
-  const now = Math.floor(Date.now() / 1000);
-  new TopicMessageQuery()
-    .setTopicId(topicId)
-    .setStartTime(now)
-    .subscribe(client, null, (message) => {
-      try {
-        const msg = JSON.parse(Buffer.from(message.contents).toString());
-        // Only process messages that are responses AND not from our own account
-        // The response should have the same ID as the original request
-        if (
-          msg.message_type === "response" &&
-          msg.sender.account_id !== process.env.HEDERA_ACCOUNT_ID &&
-          pendingRequests.has(msg.id)
-        ) {
-          const resolver = pendingRequests.get(msg.id);
-          resolver(msg);
-          pendingRequests.delete(msg.id);
-        }
-      } catch (err) {
-        // Ignore parse errors
+  subscriptionManager.subscribe(client, topicId, (message) => {
+    try {
+      const msg = JSON.parse(Buffer.from(message.contents).toString());
+
+      // Route to sub-agents
+      if (msg.sender.account_id !== hotelAgent.accountId) {
+        hotelAgent.handleMessage(msg);
       }
-    });
+      if (msg.sender.account_id !== insuranceAgent.accountId) {
+        insuranceAgent.handleMessage(msg);
+      }
+
+      // Handle responses for the main agent
+      if (
+        msg.message_type === "response" &&
+        msg.sender.account_id !== process.env.HEDERA_ACCOUNT_ID &&
+        pendingRequests.has(msg.id)
+      ) {
+        const resolver = pendingRequests.get(msg.id);
+        resolver(msg);
+        pendingRequests.delete(msg.id);
+      }
+    } catch (err) {
+      // Ignore parse errors
+    }
+  });
 
   const tools = [
     ...toolkit.getTools(),
@@ -359,11 +341,18 @@ app.use(express.static(path.join(__dirname, "public")));
     new DynamicStructuredTool({
       name: "get_travel_insurance",
       description: "Request travel insurance via A2A and wait for response",
-      schema: z.object({ tripCost: z.number(), destination: z.string() }),
+      schema: z.object({
+        tripCost: z.number(),
+        destination: z.string(),
+      }),
       func: async ({ tripCost, destination }) => {
         const msg = new A2AMessage(
           "request",
-          { service: "travel_insurance", trip_cost: tripCost, destination },
+          {
+            service: "travel_insurance",
+            trip_cost: tripCost,
+            destination,
+          },
           "main-agent",
           process.env.HEDERA_ACCOUNT_ID,
         );
@@ -386,7 +375,10 @@ app.use(express.static(path.join(__dirname, "public")));
         }
         
         const insuranceResponse = response.content;
-        if (insuranceResponse.status === "available" && insuranceResponse.coverage_options) {
+        if (
+          insuranceResponse.status === "available" &&
+          insuranceResponse.coverage_options
+        ) {
           const option = insuranceResponse.coverage_options[0];
           return `Travel insurance quote received! ${option.tier}: ${option.premium} ${option.currency} for coverage including ${option.benefits.join(", ")}. Policy reference: ${insuranceResponse.policy_reference || 'N/A'}`;
         }
@@ -451,4 +443,14 @@ app.use(express.static(path.join(__dirname, "public")));
   server.listen(PORT, () =>
     console.log(`🌐 Server running at http://localhost:${PORT}`),
   );
+
+  // Graceful shutdown
+  process.on('SIGINT', () => {
+    console.log('\nGracefully shutting down...');
+    subscriptionManager.unsubscribe();
+    server.close(() => {
+      console.log('Server closed.');
+      process.exit(0);
+    });
+  });
 })();
