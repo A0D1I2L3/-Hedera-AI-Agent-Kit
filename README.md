@@ -88,15 +88,6 @@ Powered by **Hedera AI Agent Kit** and **ElizaOS framework**:
 
 ---
 
-## Use Cases Beyond Travel
-
-The AgentH pattern enables decentralized coordination for:
-- **Supply Chain Management** — Autonomous logistics agents
-- **Insurance Claims** — Multi-party verification agents
-- **Marketplace Operations** — Buyer and seller agents negotiating
-- **Service Coordination** — Specialized agents on complex tasks
-
----
 
 ## Get Started
 
@@ -172,6 +163,6 @@ HOTEL_ACCOUNT_ID="0.0.xxxxxxx"
 HOTEL_PRIVATE_KEY="XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
 INSURANCE_ACCOUNT_ID="0.0.xxxxxxx"
 INSURANCE_PRIVATE_KEY="XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
-
+```
 
 Built with  at **ETHOnline 2025**
