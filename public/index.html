@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Hedera AI Agent</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div id="chat-container">
+      <div id="header">
+        <h1>Hedera AI Agent</h1>
+        <div id="status-light" class="connecting"></div>
+        <span id="status-text">Connecting...</span>
+      </div>
+      <div id="chat-box"></div>
+      <div id="input-area">
+        <input
+          type="text"
+          id="message-input"
+          placeholder="Type your message..."
+          autocomplete="off"
+        />
+        <button id="send-button">Send</button>
+      </div>
+    </div>
+    <script src="app.js"></script>
+  </body>
+</html>
