@@ -84,7 +84,7 @@ This project uses environment variables to securely manage your Hedera account c
     *Example format:*
     ```bash
     # HEDERA_ACCOUNT_ID="0.0.xxxxxxx"
-    # HEDERA_PRIVATE_KEY="0xXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+    # HEDERA_PRIVATE_KEY="0xXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
     ```
 
 3.  **Create the Main Agent Topic:**
