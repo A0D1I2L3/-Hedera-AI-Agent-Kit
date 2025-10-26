@@ -167,5 +167,5 @@ INSURANCE_PRIVATE_KEY="XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 ---
 <div align="center">
 
-Built with   at **ETHOnline 2025**
+Built with ♥ at **ETHOnline 2025**
 </div>
