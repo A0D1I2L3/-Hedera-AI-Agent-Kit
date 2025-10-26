@@ -3,8 +3,6 @@
 
 **Autonomous AI agents on Hedera** enabling decentralized travel booking and insurance quotes through multi-agent coordination.
 
-Build AI-powered applications where independent agents communicate over Hedera's Consensus Service to perform tasks — entirely on-chain and without centralized servers.
-
 ---
 
 ## Overview
