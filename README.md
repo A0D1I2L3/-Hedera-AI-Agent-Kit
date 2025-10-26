@@ -73,13 +73,12 @@ Powered by **Hedera AI Agent Kit** and **ElizaOS framework**:
 - WebSocket server
 
 **Frontend:**
-- React + Tailwind CSS
 - WebSocket client
-- Transaction visualization
+- HTML/CSS for UI
 
 **AI Layer:**
 - LangChain for reasoning
-- Groq/Ollama LLM
+- Groq LLM
 - Intent recognition
 
 **Blockchain:**
