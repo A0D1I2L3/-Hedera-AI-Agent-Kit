@@ -1,4 +1,4 @@
-# AgentH - Hedera AI Agent Kit
+# AgentH
 
 ![Banner](banner.jpg)
 
